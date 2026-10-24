@@ -1,0 +1,6 @@
+# Show the language of uploaded solutions, not support scripts or empty templates.
+scripts/** linguist-detectable=false
+tests/** linguist-detectable=false
+templates/** linguist-detectable=false
+assets/** linguist-generated=true
+data/** linguist-generated=true
