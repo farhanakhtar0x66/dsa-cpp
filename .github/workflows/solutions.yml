@@ -1,0 +1,75 @@
+name: Solutions
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solutions-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Test automation
+        run: python3 -m unittest discover -s tests -v
+      - name: Validate index generation
+        run: |
+          python3 scripts/update_index.py
+          python3 scripts/update_index.py --check
+      - name: Check each C++20 solution independently
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r -d '' solution; do
+            printf 'Checking %q\n' "$solution"
+            g++ -std=c++20 -Wall -Wextra -pedantic -fsyntax-only "$solution"
+            count=$((count + 1))
+          done < <(find solutions -type f -name '*.cpp' -print0)
+          printf 'Checked %s solution files.\n' "$count"
+          g++ -std=c++20 -Wall -Wextra -pedantic -fsyntax-only templates/solution.cpp
+
+  update-index:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    concurrency:
+      group: generated-main
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Regenerate solution index
+        run: python3 scripts/update_index.py
+      - name: Commit the changed index
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- README.md; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- README.md
+          git commit -m 'docs: refresh solution index'
+          git push origin HEAD:main
