@@ -5,7 +5,7 @@ My C++20 data structures and algorithms practice, organized by topic. First uplo
 [LeetCode · farhanakhtar0x66](https://leetcode.com/u/farhanakhtar0x66/) · [GitHub profile](https://github.com/farhanakhtar0x66)
 
 <picture>
-  <source media="(max-width: 600px)" srcset="assets/leetcode-mobile.svg" />
+  <source media="(max-width: 600px)" srcset="assets/leetcode-mobile.svg?v=2" />
   <img src="assets/leetcode.svg" width="920" alt="Public LeetCode accepted totals, submission-day streak, and past-year activity for farhanakhtar0x66." />
 </picture>
 
