@@ -1,6 +1,9 @@
 import importlib.util
 import unittest
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
+import json
+from unittest.mock import patch
 from pathlib import Path
 
 SCRIPT=Path(__file__).resolve().parents[1]/'scripts/leetcode_card.py'
@@ -37,5 +40,27 @@ class ActivityTests(unittest.TestCase):
             'matchedUser':{'username':'farhanakhtar0x66','submitStatsGlobal':{'acSubmissionNum':[{'difficulty':d,'count':n} for d,n in [('All',1),('Easy',1),('Medium',0),('Hard',0)]]},'current':{'submissionCalendar':'{"1792800000":2}'},'previous':{'submissionCalendar':'{"1792800000":2}'}}}}
         snapshot=self.card.normalize(payload,'farhanakhtar0x66','2026-10-24T07:00:00+00:00')
         self.assertEqual(sum(snapshot['calendar'].values()),2)
+
+    def test_fetch_preserves_a_long_streak_at_new_year(self):
+        class Clock(datetime):
+            @classmethod
+            def now(cls,tz=None):
+                return cls(2027,1,1,12,tzinfo=timezone.utc)
+        def calendar(year):
+            days={};day=date(year,1,1)
+            while day<=date(2027,1,1) and day.year==year:
+                if day>=date(2025,1,1):
+                    days[str(int(datetime(day.year,day.month,day.day,tzinfo=timezone.utc).timestamp()))]=1
+                day+=timedelta(days=1)
+            return json.dumps(days)
+        def response(year):
+            items=[{'difficulty':d,'count':n} for d,n in [('All',1),('Easy',1),('Medium',0),('Hard',0)]]
+            return BytesIO(json.dumps({'data':{'allQuestionsCount':items,'matchedUser':{
+                'username':'farhanakhtar0x66','submitStatsGlobal':{'acSubmissionNum':items},
+                'current':{'submissionCalendar':calendar(year)},
+                'previous':{'submissionCalendar':calendar(year-1)}}}}).encode())
+        with patch.object(self.card,'datetime',Clock), patch.object(self.card.urllib.request,'urlopen',side_effect=[response(2027),response(2025)]):
+            snapshot=self.card.fetch()
+        self.assertEqual(self.card.activity(snapshot['calendar'],date(2027,1,1))['current'],731)
 
 if __name__=='__main__':unittest.main()

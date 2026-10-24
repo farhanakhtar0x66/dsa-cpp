@@ -68,12 +68,28 @@ def activity(calendar,today):
 
 def fetch(username=USERNAME):
     now=datetime.now(timezone.utc)
-    body={'query':QUERY,'variables':{'username':username,'year':now.year,'previous':now.year-1}}
-    req=urllib.request.Request('https://leetcode.com/graphql/',data=json.dumps(body).encode(),
-        headers={'Content-Type':'application/json','User-Agent':'Mozilla/5.0 (compatible; PublicProfileCard/1.0)',
-                 'Referer':'https://leetcode.com/u/'+username+'/'})
-    with urllib.request.urlopen(req,timeout=30) as response:payload=json.load(response)
-    return normalize(payload,username,now.isoformat(timespec='seconds'))
+    def request_years(year):
+        body={'query':QUERY,'variables':{'username':username,'year':year,'previous':year-1}}
+        req=urllib.request.Request('https://leetcode.com/graphql/',data=json.dumps(body).encode(),
+            headers={'Content-Type':'application/json','User-Agent':'Mozilla/5.0 (compatible; PublicProfileCard/1.0)',
+                     'Referer':'https://leetcode.com/u/'+username+'/'})
+        with urllib.request.urlopen(req,timeout=30) as response:payload=json.load(response)
+        return normalize(payload,username,now.isoformat(timespec='seconds'))
+    snapshot=request_years(now.year)
+    oldest=now.year-1
+    # If an uninterrupted streak reaches our fetched boundary, load older years
+    # until its real starting gap is known. A January rollover must not truncate it.
+    while True:
+        today=now.date();run=activity(snapshot['calendar'],today)['current']
+        latest=today if snapshot['calendar'].get(today.isoformat(),0)>0 else today-timedelta(days=1)
+        first=latest-timedelta(days=run-1) if run else None
+        if first!=date(oldest,1,1):break
+        older=request_years(oldest-1)
+        for day,n in older['calendar'].items():
+            snapshot['calendar'][day]=max(snapshot['calendar'].get(day,0),n)
+        oldest-=2
+    snapshot['calendar']=dict(sorted(snapshot['calendar'].items()))
+    return snapshot
 
 
 def validate(snapshot):
